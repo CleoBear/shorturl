@@ -37,7 +37,7 @@ app.post('/shorturl', jsonParser, function(req, res){
             let savePath =  path + '/' + shortId ;
             console.log(longUrl);
             ref.child(savePath).set(longUrl).then(()=>{
-                shortUrl = process.env.APP_URL + ':' + process.env.PORT +'/'+ shortId;
+                shortUrl = process.env.APP_URL + shortId;
                 ref.child('count').set(count + 1);
                 res.status(200).json({code:'1', content:shortUrl, msg:'success'});
             });

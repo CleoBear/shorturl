@@ -12,7 +12,7 @@ app.post('/shorturl', jsonParser, function(req, res){
     let urlRef = ref.child("urls");
     let longUrl = req.body.url;
     urlRef.push(longUrl).then((snapshot)=>{
-        shortUrl = process.env.APP_URL + ':' + process.env.PORT + '/' + snapshot.key;;
+        shortUrl = process.env.APP_URL + snapshot.key;
         res.status(200).json({code:'1', content:shortUrl, msg:'success'});
     });
 
