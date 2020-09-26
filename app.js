@@ -11,17 +11,11 @@ const app = express();
 const jsonParser = bodyParser.json();
 
 app.post('/', function(req, res){
-    res.send('短網址API');
+    res.send('short URL API, please goto /generate to create.');
 })
 
 app.post('/generate', jsonParser, function(req, res){
 
-    //--transaction
-    // 1.查詢最新id
-    // 2.利用新的primary key+timestamp 產生 base62 短網址
-    // 3.檢查是否已有id，有的話繼續重新產生key，沒有就update shorturl
-    // 4.寫入redis
-    // 5.return url
     if(!req.body.url){
         res.status(200).json({code:'0', msg:'no url data input.'});
     }
@@ -57,7 +51,7 @@ app.post('/generate', jsonParser, function(req, res){
                         });
                     }
                     let shortUrl = process.env.APP_URL + shortId;
-                    //redis_client.set(shortId, longUrl);
+                    redis_client.set(shortId, longUrl);
                     res.status(200).json({code:'1', content:shortUrl, msg:'success'});
                     
                     connection.commit(function(error) {
@@ -78,9 +72,7 @@ app.post('/generate', jsonParser, function(req, res){
 })
 
 app.get('/:shortId', function(req, res){
-    // 1.先到redis取得對應ur
-    // 2.沒有資料的話，到db查
-    // 3.跳轉頁面
+
     let shortId = req.params.shortId;
 
     redis_client.get(shortId, function (error, results) {
@@ -97,7 +89,7 @@ app.get('/:shortId', function(req, res){
                     if (error) {throw error;};
                     let data = (JSON.parse(JSON.stringify(results)));
                     if(data.length > 0){
-                        //redis_client.set(shortId, data[0].long_url); //回寫redis
+                        redis_client.set(shortId, data[0].long_url); //回寫redis
                         res.redirect(302, data[0].long_url);
                     }else{
                         res.status(200).json({code:'0', msg:'short url resource not found.'});
@@ -109,12 +101,12 @@ app.get('/:shortId', function(req, res){
 })
 
 app.use(function(req, res, next){
-    res.status(400).send('頁面不存在');
+    res.status(400).send('page not found');
 })
 app.use(function(err, req, res, next){
     console.log(err);
     
-    res.status(500).send('伺服器錯誤，請稍後再試');
+    res.status(500).send('server error');
 })
 
 var port = process.env.PORT || 8080;
