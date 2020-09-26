@@ -1,59 +1,109 @@
-const db = require("./connections/firebase_admin")
 const express = require("express");
+const redis_client = require('./connections/redis');
 const bodyParser = require("body-parser");
 const base62 = require("base62/lib/ascii");
+const pool = require("./connections/mysql");
+const valdate = require("./lib/valdate");
+
 require('dotenv').config();
 
 const app = express();
 const jsonParser = bodyParser.json();
-const path = 'base62urls';
-const ref = db.ref();
 
-app.post('/shorturl', jsonParser, function(req, res){
-    let urlRef = ref.child(path);
+app.post('/', function(req, res){
+    res.send('短網址API');
+})
+
+app.post('/generate', jsonParser, function(req, res){
+
+    //--transaction
+    // 1.查詢最新id
+    // 2.利用新的primary key+timestamp 產生 base62 短網址
+    // 3.檢查是否已有id，有的話繼續重新產生key，沒有就update shorturl
+    // 4.寫入redis
+    // 5.return url
+    if(!req.body.url){
+        res.status(200).json({code:'0', msg:'no url data input.'});
+    }
+
+    if(!valdate.isUrl(req.body.url)){
+        res.status(200).json({code:'0', msg:'url format error,place check your url input.'});
+    }
     let longUrl = req.body.url;
-
-    let count = 0,
-        isExist = false,
-        shortUrl,
-        shortId;
-        
-    let timestamp = Math.floor(new Date() / 1000);
-
-    ref.child('count').once("value", (snapshot)=>{
-        count = (snapshot.val() === null) ? 0 : snapshot.val() ;
-    }).then(()=>{
-        shortId  = base62.encode(timestamp + (count + 1) );
-        ref.child(path + '/' + count).once("value", (snapshot)=>{
-            console.log(snapshot.key);
-            if(snapshot.key !== null){
-                isExist = true;
+    
+    pool.getConnection(function(error,connection){
+        connection.beginTransaction(function(error) {
+            if (error) {
+                connection.rollback(function() {
+                    connection.release();
+                    throw error;
+                });
             }
-        })
-    }).then(()=>{
-        if(isExist){
-            res.status(200).json({code:'0', msg:'short url already exist'});
-        }else{
-            let savePath =  path + '/' + shortId ;
-            console.log(longUrl);
-            ref.child(savePath).set(longUrl).then(()=>{
-                shortUrl = process.env.APP_URL + shortId;
-                ref.child('count').set(count + 1);
-                res.status(200).json({code:'1', content:shortUrl, msg:'success'});
+            connection.query('INSERT INTO url_map SET long_url=?', longUrl, function (error, results, fields) {
+                if (error) {
+                    connection.rollback(function() {
+                        connection.release();
+                        throw error;
+                    });
+                }
+                let id = results.insertId;
+                let shortId = base62.encode(results.insertId + Math.floor(new Date() / 1000));
+                connection.query('UPDATE url_map SET short_url=? WHERE id = ?', [shortId, id] , function(error, results, fields){
+                
+                    if (error) {
+                        connection.rollback(function() {
+                            connection.release();
+                            throw error;
+                        });
+                    }
+                    let shortUrl = process.env.APP_URL + shortId;
+                    //redis_client.set(shortId, longUrl);
+                    res.status(200).json({code:'1', content:shortUrl, msg:'success'});
+                    
+                    connection.commit(function(error) {
+                        if (error) {
+                            connection.rollback(function() {
+                                connection.release();
+                                throw error;
+                            });
+                        } else {
+                            connection.release();
+                        }
+                    });
+                });
             });
-        }
+        });
+        
     });
-
 })
 
 app.get('/:shortId', function(req, res){
-    let urlRef = ref.child(path + '/' + req.params.shortId);
-    urlRef.once("value", function(snapshot) {
-        let longUrl = snapshot.val();
-        if(longUrl === null){
-            res.status(200).json({code:'0', msg:'short url resource not found.'});
+    // 1.先到redis取得對應ur
+    // 2.沒有資料的話，到db查
+    // 3.跳轉頁面
+    let shortId = req.params.shortId;
+
+    redis_client.get(shortId, function (error, results) {
+
+        if (error !== null) {throw error;};//沒錯誤,會是 null
+        if(results){
+            res.redirect(302, results);
         }else{
-            res.redirect(302, longUrl);
+            pool.getConnection(function(error,connection){
+                if (error) {throw error;};
+                //redis 找不到再到db撈
+                connection.query('SELECT long_url FROM url_map WHERE short_url = ?', shortId , function(error, results, fields){
+                    connection.release();
+                    if (error) {throw error;};
+                    let data = (JSON.parse(JSON.stringify(results)));
+                    if(data.length > 0){
+                        //redis_client.set(shortId, data[0].long_url); //回寫redis
+                        res.redirect(302, data[0].long_url);
+                    }else{
+                        res.status(200).json({code:'0', msg:'short url resource not found.'});
+                    }
+                });
+            });
         }
     });
 })
@@ -63,9 +113,9 @@ app.use(function(req, res, next){
 })
 app.use(function(err, req, res, next){
     console.log(err);
+    
     res.status(500).send('伺服器錯誤，請稍後再試');
 })
-
 
 var port = process.env.PORT || 8080;
 app.listen(port);
