@@ -33,6 +33,18 @@ To set environment variabes, please modify .env file, you could cpoy from .env.e
 ```cmd
 $ cp .env.example .env 
 ```
+## MySQL Database Structure
+
+```mysql
+CREATE TABLE `url_map` (
+  `id` int(11) unsigned NOT NULL AUTO_INCREMENT COMMENT 'id',
+  `short_url` varchar(100) NOT NULL DEFAULT '' COMMENT 'short URL',
+  `long_url` text NOT NULL COMMENT 'original URL',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `short_url` (`short_url`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8;
+```
+
 ## API interface
 
 To make Short URL

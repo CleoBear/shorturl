@@ -26,6 +26,11 @@ app.post('/generate', jsonParser, function(req, res){
     if(!valdate.isUrl(req.body.url)){
         res.status(200).json({code:'0', msg:'url format error,place check your url input.'});
     }
+
+    if(valdate.isMyShortUrl(req.body.url)){
+        res.status(200).json({code:'0', msg:'you can not inpu a short url.'});
+    }
+
     let longUrl = req.body.url;
     
     pool.getConnection(function(error,connection){
