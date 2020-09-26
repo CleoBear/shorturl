@@ -3,11 +3,11 @@ This short URL api service, implement by node.js, Mysql, redis database.
 
 ## System Requirement
 
-* Node.JS
-* npm
-* MySql
-* redis
-* git
+* [Node.JS](https://nodejs.org/en/)
+* [npm](https://www.npmjs.com/)
+* [MySql](https://www.mysql.com/)
+* [redis](https://redis.io/)
+* [git](https://git-scm.com/)
   
 ## Installation
 
@@ -51,7 +51,7 @@ curl http://localhost:3000/1Km6F2
 ```
 ## Live Demo
 
-I had puted this prject to Heroku server, you could test follow this hint.
+I had puted this prject to [Heroku](https://dashboard.heroku.com/) server, you could test follow this hint.
 
 ```cmd
 curl -H "Content-Type:application/json" -X POST -d '{"url": "https://github.com/CleoBear/shorturl"}' https://short-url-cc.herokuapp.com/generate
