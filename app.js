@@ -13,10 +13,6 @@ const REDIS_PREFIX = 'short_url:';
 const PREFIX_SHORT_TO_LONG = REDIS_PREFIX + 'short_long:';
 const PREFIX_LONG_TO_SHORT = REDIS_PREFIX + 'long_short:';
 
-app.post('/', function(req, res){
-    res.send('short URL API, please goto /generate to create.');
-})
-
 app.post('/generate', jsonParser, function(req, res){
 
     if(!req.body.url){
