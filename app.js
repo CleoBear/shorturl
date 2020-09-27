@@ -1,151 +1,94 @@
 const express = require("express");
-const redis_client = require('./connections/redis');
+const redis_service = require('./services/redis_service');
+const mysql_service = require('./services/mysql_service');
 const bodyParser = require("body-parser");
-const base62 = require("base62/lib/ascii");
-const pool = require("./connections/mysql");
 const valdate = require("./lib/valdate");
 const app = express();
 const jsonParser = bodyParser.json();
 
 require('dotenv').config();
 
-const REDIS_PREFIX = 'short_url:';
-const PREFIX_SHORT_TO_LONG = REDIS_PREFIX + 'short_long:';
-const PREFIX_LONG_TO_SHORT = REDIS_PREFIX + 'long_short:';
+const SUCCESS_CODE = 1;
+const FAILED_CODE = 0;
 
-app.post('/generate', jsonParser, function(req, res){
+app.post('/generate', jsonParser, function (req, res) {
 
-    if(!req.body.url){
-        res.status(200).json({code:'0', msg:'no url data input.'});
-    }
-
-    if(!valdate.isUrl(req.body.url)){
-        res.status(200).json({code:'0', msg:'url format error,place check your url input.'});
-    }
-
-    if(valdate.isMyShortUrl(req.body.url)){
-        res.status(200).json({code:'0', msg:'you can not inpu a short url.'});
-    }
-
-    let longUrl = req.body.url;
-    
-    pool.getConnection(function(error,connection){
-        
-        //先查有沒有已經生成的短網址
-        redis_client.get(PREFIX_LONG_TO_SHORT + longUrl, function (error, results) {
-
-            if (error !== null) {throw error;}
-            if(results){
-                let shortUrl = process.env.APP_URL + results;
-                res.status(200).json({code:'1', content:shortUrl, msg:'success'});
-            }else{
-                pool.getConnection(function(error,connection){
-                    if (error) {throw error;};
-                    //redis 找不到再到db撈
-                    connection.query('SELECT short_url FROM url_map WHERE long_url = ?', longUrl , function(error, results, fields){
-                        connection.release();
-                        if (error) {throw error;};
-                        let data = (JSON.parse(JSON.stringify(results)));
-                        if(data.length > 0){
-                            //回寫redis
-                            let shortId = data[0].short_url;
-                            let shortUrl = process.env.APP_URL + shortId;
-                            redis_client.set(PREFIX_SHORT_TO_LONG + shortId, longUrl);
-                            redis_client.set(PREFIX_LONG_TO_SHORT + longUrl, shortId);
-    
-                            res.status(200).json({code:'1', content:shortUrl, msg:'success'});
-                        }else{
-                            //產生新的對應關係
-                            connection.beginTransaction(function(error) {
-                                if (error) {
-                                    connection.rollback(function() {
-                                        connection.release();
-                                        throw error;
-                                    });
-                                }
-                                connection.query('INSERT INTO url_map SET long_url=?', longUrl, function (error, results, fields) {
-                                    if (error) {
-                                        connection.rollback(function() {
-                                            connection.release();
-                                            throw error;
-                                        });
-                                    }
-                                    let id = results.insertId;
-                                    let shortId = base62.encode(results.insertId + Math.floor(new Date() / 1000));
-                                    connection.query('UPDATE url_map SET short_url=? WHERE id = ?', [shortId, id] , function(error, results, fields){
-                                    
-                                        if (error) {
-                                            connection.rollback(function() {
-                                                connection.release();
-                                                throw error;
-                                            });
-                                        }
-                                        let shortUrl = process.env.APP_URL + shortId;
-                                        //寫入redis
-                                        redis_client.set(PREFIX_SHORT_TO_LONG + shortId, longUrl);
-                                        redis_client.set(PREFIX_LONG_TO_SHORT + longUrl, shortId);
-                    
-                                        res.status(200).json({code:'1', content:shortUrl, msg:'success'});
-                                        
-                                        connection.commit(function(error) {
-                                            if (error) {
-                                                connection.rollback(function() {
-                                                    connection.release();
-                                                    throw error;
-                                                });
-                                            } else {
-                                                connection.release();
-                                            }
-                                        });
-                                    });
-                                });
-                            });
-                        }
-                    });
-                });
+    (async () => {
+        try {
+            if (!req.body.url) {
+                res.status(200).json({ code: FAILED_CODE, msg: 'no url data input.' });
             }
-        });
-    });
+
+            if (!valdate.isUrl(req.body.url)) {
+                res.status(200).json({ code: FAILED_CODE, msg: 'url format error,place check your url input.' });
+            }
+
+            if (valdate.isMyShortUrl(req.body.url)) {
+                res.status(200).json({ code: FAILED_CODE, msg: 'you can not inpu a short url.' });
+            }
+
+            longUrl = req.body.url;
+            let shortId = null;
+            let isRedisExistUrl = false;
+
+            //查看redis有沒有已經生成的短網址
+            shortId = await redis_service.getShortId(longUrl);
+
+            //查看mysql有沒有已經生成的短網址
+            if (shortId !== null) {
+                isRedisExistUrl = true;
+            } else {
+                shortId = await mysql_service.getShortId(longUrl);
+            }
+
+            if (shortId === null) {
+                //若都沒有，則生成新的短網址
+                shortId = await mysql_service.newShortId(longUrl);
+            }
+            if (shortId !== null) {
+                let shortUrl = process.env.APP_URL + shortId;
+                //寫redis
+                if (!isRedisExistUrl) {
+                    await redis_service.addUrlMapping(shortId, longUrl);
+                }
+                res.status(200).json({ code: SUCCESS_CODE, content: shortUrl, msg: 'success' });
+            } else {
+                res.status(200).json({ code: FAILED_CODE, msg: 'generate failed' });
+            }
+        } catch (err) {
+            console.log(err);
+            res.status(500).json({ code: FAILED_CODE, msg: 'intral server error' });
+        }
+
+    })();
 })
 
-app.get('/:shortId', function(req, res){
+app.get('/:shortId', function (req, res) {
 
     let shortId = req.params.shortId;
 
-    redis_client.get(PREFIX_SHORT_TO_LONG + shortId, function (error, results) {
-
-        if (error !== null) {throw error;}
-        if(results){
-            res.redirect(302, results);
-        }else{
-            pool.getConnection(function(error,connection){
-                if (error) {throw error;};
-                //redis 找不到再到db撈
-                connection.query('SELECT long_url FROM url_map WHERE short_url = ?', shortId , function(error, results, fields){
-                    connection.release();
-                    if (error) {throw error;};
-                    let data = (JSON.parse(JSON.stringify(results)));
-                    if(data.length > 0){
-                        //回寫redis
-                        redis_client.set(PREFIX_SHORT_TO_LONG + shortId, data[0].long_url);
-                        redis_client.set(PREFIX_LONG_TO_SHORT + data[0].long_url, shortId);
-
-                        res.redirect(302, data[0].long_url);
-                    }else{
-                        res.status(404).json({code:'0', msg:'short url resource not found.'});
-                    }
-                });
-            });
+    (async () => {
+        try {
+            let longUrl = null;
+            //先到redis取long url
+            longUrl = await redis_service.getLongUrl(shortId);
+            //取不到再到mysql取資料
+            if (longUrl === null) {
+                longUrl = await mysql_service.getLongUrl(shortId);
+            }
+            if (longUrl === null) {
+                res.status(200).json({ code: FAILED_CODE, msg: 'short url resource not found.' });
+            } else {
+                //回寫redis
+                await redis_service.addUrlMapping(shortId, longUrl);
+                res.redirect(302, longUrl);
+            }
+        } catch (err) {
+            console.log(err);
+            res.status(500).json({ code: FAILED_CODE, msg: 'intral server error' });
         }
-    });
-})
+    })();
 
-app.use(function(req, res, next){
-    res.status(404).send('api not found');
-})
-app.use(function(err, req, res, next){
-    console.log(err);
-    res.status(500).send('server error');
 })
 
 var port = process.env.PORT || 8080;
