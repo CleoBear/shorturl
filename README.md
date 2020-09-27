@@ -2,8 +2,9 @@
 This short URL api service, implement by node.js, Mysql, redis database.
 
 ## System Requirement
+Before download this project, please make sure you have these application in your system.
 
-* [Node.JS](https://nodejs.org/en/)
+* [Node.JS](https://nodejs.org/en/) 
 * [npm](https://www.npmjs.com/)
 * [MySql](https://www.mysql.com/)
 * [redis](https://redis.io/)
@@ -12,6 +13,7 @@ This short URL api service, implement by node.js, Mysql, redis database.
 ## Installation
 
 Download this project from gitHub web side or just use git command to clone this project.
+
 ```cmd
 $ git clone https://github.com/CleoBear/shorturl.git
 ```
@@ -19,19 +21,21 @@ Use npm package managment to install packages for needs.
 the settings could be configure in package.json file in this project.
 
 ```cmd
+$ cd strurl
 $ npm install
 ```
 Start server
 ```cmd
 $ npm start
 ```
-View the website at: http://localhost:3000
+While the server has been started. you could view the website at: http://localhost:3000
 
 ## Environment Configuration
-To set environment variabes, please modify .env file, you could cpoy from .env.example and configure .env file
+To set up environment variabes, please modify .env file, you could cpoy from .env.example and configure .env file
 
 ```cmd
 $ cp .env.example .env 
+$ vim .env
 ```
 ## MySQL Database Structure
 
