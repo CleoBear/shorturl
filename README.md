@@ -58,7 +58,7 @@ curl -H "Content-Type:application/json" -X POST -d '{"url": "https://github.com/
 ```
 You will get the response like this
 ```json
-{"code":"1","content":"http://localhost:3000/1Km6F2","msg":"success"}
+{"content":"http://localhost:3000/1KmAu9","msg":"success"}
 ```
 Use this command you will get a Redirecting to https://github.com/CleoBear/shorturl
 

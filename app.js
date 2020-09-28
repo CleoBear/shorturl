@@ -8,23 +8,20 @@ const jsonParser = bodyParser.json();
 
 require('dotenv').config();
 
-const SUCCESS_CODE = 1;
-const FAILED_CODE = 0;
-
 app.post('/generate', jsonParser, function (req, res) {
 
     (async () => {
         try {
             if (!req.body.url) {
-                res.status(200).json({ code: FAILED_CODE, msg: 'no url data input.' });
+                res.status(400).json({ msg: 'no url data input.' });
             }
 
             if (!valdate.isUrl(req.body.url)) {
-                res.status(200).json({ code: FAILED_CODE, msg: 'url format error,place check your url input.' });
+                res.status(400).json({ msg: 'url format error,place check your url input.' });
             }
 
             if (valdate.isMyShortUrl(req.body.url)) {
-                res.status(200).json({ code: FAILED_CODE, msg: 'you can not inpu a short url.' });
+                res.status(400).json({ msg: 'you can not inpu a short url.' });
             }
 
             longUrl = req.body.url;
@@ -51,13 +48,11 @@ app.post('/generate', jsonParser, function (req, res) {
                 if (!isRedisExistUrl) {
                     await redis_service.addUrlMapping(shortId, longUrl);
                 }
-                res.status(200).json({ code: SUCCESS_CODE, content: shortUrl, msg: 'success' });
-            } else {
-                res.status(200).json({ code: FAILED_CODE, msg: 'generate failed' });
+                res.status(201).json({ content: shortUrl, msg: 'success' });
             }
         } catch (err) {
             console.log(err);
-            res.status(500).json({ code: FAILED_CODE, msg: 'intral server error' });
+            res.status(500).json({ msg: 'intral server error' });
         }
 
     })();
@@ -77,7 +72,7 @@ app.get('/:shortId', function (req, res) {
                 longUrl = await mysql_service.getLongUrl(shortId);
             }
             if (longUrl === null) {
-                res.status(200).json({ code: FAILED_CODE, msg: 'short url resource not found.' });
+                res.status(404).json({ msg: 'short url resource not found.' });
             } else {
                 //回寫redis
                 await redis_service.addUrlMapping(shortId, longUrl);
@@ -85,7 +80,7 @@ app.get('/:shortId', function (req, res) {
             }
         } catch (err) {
             console.log(err);
-            res.status(500).json({ code: FAILED_CODE, msg: 'intral server error' });
+            res.status(500).json({ msg: 'intral server error' });
         }
     })();
 
