@@ -1,54 +1,40 @@
 const pool = require("../connections/mysql");
 const base62 = require("base62/lib/ascii");
 
-exports.getLongUrl = function getLongUrl(shortId) {
+
+var _query = function (sql, values) {
     return new Promise((resolve, reject) => {
-        pool.getConnection(function (error, connection) {
-            if (error) {
-                reject(error);
-            };
-
-            let sql = 'SELECT long_url FROM url_map WHERE short_url = ?';
-
-            connection.query(sql, shortId, function (error, results, fields) {
-                connection.release();
-                if (error) {
-                    reject(error);
-                };
-                let data = (JSON.parse(JSON.stringify(results)));
-                if (data.length > 0) {
-                    resolve(data[0].long_url);
-                } else {
-                    resolve(null);
-                }
-            });
+        pool.getConnection(function (err, connection) {
+            if (err) {
+                reject(err);
+            } else {
+                connection.query(sql, values, (err, rows) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        console.log(values);
+                        let data = (JSON.parse(JSON.stringify(rows)));
+                        resolve(data);
+                    }
+                    connection.release();
+                });
+            }
         });
     });
 };
 
+exports.getLongUrl = function getLongUrl(shortId) {
+    
+    let sql = 'SELECT long_url FROM url_map WHERE short_url = ?';
+    return _query(sql, shortId);
+        
+};
+
 exports.getShortId = function getShortId(longUrl) {
-    return new Promise((resolve, reject) => {
-        pool.getConnection(function (error, connection) {
-            if (error) {
-                reject(error);
-            };
 
-            let sql = 'SELECT short_url FROM url_map WHERE long_url = ?';
-
-            connection.query(sql, longUrl, function (error, results, fields) {
-                connection.release();
-                if (error) {
-                    reject(error);
-                };
-                let data = (JSON.parse(JSON.stringify(results)));
-                if (data.length > 0) {
-                    resolve(data[0].short_url);
-                } else {
-                    resolve(null);
-                }
-            });
-        });
-    });
+    let sql = 'SELECT short_url FROM url_map WHERE long_url = ?';
+    return _query(sql, longUrl);
+    
 };
 
 exports.newShortId = function newShortId(longUrl) {

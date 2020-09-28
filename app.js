@@ -35,9 +35,11 @@ app.post('/generate', jsonParser, function (req, res) {
             if (shortId !== null) {
                 isRedisExistUrl = true;
             } else {
-                shortId = await mysql_service.getShortId(longUrl);
+                let data = await mysql_service.getShortId(longUrl);
+                if(data.length > 0){
+                    shortId =  data[0].short_url;
+                }
             }
-
             if (shortId === null) {
                 //若都沒有，則生成新的短網址
                 shortId = await mysql_service.newShortId(longUrl);
@@ -69,7 +71,10 @@ app.get('/:shortId', function (req, res) {
             longUrl = await redis_service.getLongUrl(shortId);
             //取不到再到mysql取資料
             if (longUrl === null) {
-                longUrl = await mysql_service.getLongUrl(shortId);
+                let data = await mysql_service.getLongUrl(shortId);
+                if(data.length > 0){
+                    longUrl =  data[0].long_url;
+                }
             }
             if (longUrl === null) {
                 res.status(404).json({ msg: 'short url resource not found.' });
